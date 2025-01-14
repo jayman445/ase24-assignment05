@@ -3,6 +3,7 @@ package de.unibayreuth.se.taskboard.api.mapper;
 import de.unibayreuth.se.taskboard.api.dtos.TaskDto;
 import de.unibayreuth.se.taskboard.api.dtos.UserDto;
 import de.unibayreuth.se.taskboard.business.domain.Task;
+import de.unibayreuth.se.taskboard.business.ports.UserService;
 import lombok.NoArgsConstructor;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -19,8 +20,8 @@ import java.util.UUID;
 public abstract class TaskDtoMapper {
     //TODO: Fix this mapper after resolving the other TODOs.
 
-//    @Autowired
-//    private UserService userService;
+    @Autowired
+    private UserService userService;
     @Autowired
     private UserDtoMapper userDtoMapper;
 

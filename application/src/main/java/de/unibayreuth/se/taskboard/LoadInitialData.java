@@ -2,6 +2,7 @@ package de.unibayreuth.se.taskboard;
 
 import de.unibayreuth.se.taskboard.business.domain.Task;
 import de.unibayreuth.se.taskboard.business.ports.TaskService;
+import de.unibayreuth.se.taskboard.business.ports.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
@@ -20,7 +21,7 @@ import java.util.List;
 class LoadInitialData implements InitializingBean {
     private final TaskService taskService;
     // TODO: Fix this class after resolving the other TODOs.
-    //private final UserService userService;
+    private final UserService userService;
 
     @Override
     public void afterPropertiesSet() {

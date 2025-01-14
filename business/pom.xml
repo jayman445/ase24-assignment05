@@ -9,6 +9,9 @@
     </parent>
 
     <artifactId>business</artifactId>
+    <dependencies>
+
+    </dependencies>
 
     <build>
         <plugins>
