@@ -1,0 +1,381 @@
+diff --git a/api/src/main/java/de/unibayreuth/se/taskboard/api/controller/UserController.java b/api/src/main/java/de/unibayreuth/se/taskboard/api/controller/UserController.java
+index b698136..1e523aa 100644
+--- a/api/src/main/java/de/unibayreuth/se/taskboard/api/controller/UserController.java
++++ b/api/src/main/java/de/unibayreuth/se/taskboard/api/controller/UserController.java
+@@ -1,12 +1,23 @@
+ package de.unibayreuth.se.taskboard.api.controller;
+ 
++import de.unibayreuth.se.taskboard.api.dtos.UserDto;
++import de.unibayreuth.se.taskboard.api.mapper.UserDtoMapper;
++import de.unibayreuth.se.taskboard.business.ports.UserService;
++import de.unibayreuth.se.taskboard.business.domain.User;
+ import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+ import io.swagger.v3.oas.annotations.info.Info;
+ import io.swagger.v3.oas.annotations.tags.Tag;
+ import lombok.RequiredArgsConstructor;
++import org.springframework.http.ResponseEntity;
+ import org.springframework.stereotype.Controller;
+ import org.springframework.web.bind.annotation.*;
+ 
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Optional;
++import java.util.UUID;
++import java.util.stream.Collectors;
++
+ @OpenAPIDefinition(
+         info = @Info(
+                 title = "TaskBoard",
+@@ -21,4 +32,33 @@ public class UserController {
+     // TODO: Add GET /api/users endpoint to retrieve all users.
+     // TODO: Add GET /api/users/{id} endpoint to retrieve a user by ID.
+     // TODO: Add POST /api/users endpoint to create a new user based on a provided user DTO.
++    private final UserService userService;
++    private final UserDtoMapper userDtoMapper;
++
++        @GetMapping
++        public ResponseEntity<List<UserDto>> getAllUsers() {
++            List<User> users = userService.getAllUsers();
++
++            // convert to Dtos
++            List<UserDto> userDtos = users.stream()
++                    .map(userDtoMapper::fromBusiness)
++                    .collect(Collectors.toList());
++
++            return ResponseEntity.ok(userDtos);
++        }
++
++        @GetMapping("/{id}")
++        public ResponseEntity<UserDto> getUserById(@PathVariable UUID id) {
++            Optional<User> user = userService.getUserById(id);
++            Optional<UserDto> userDto = user.map(userDtoMapper::fromBusiness);
++            return userDto.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
++        }
++
++        @PostMapping
++        public ResponseEntity<UserDto> createUser(@RequestBody UserDto userDto) {
++                User user = new User(userDto.name());
++                User createdUser = userService.createUser(user);
++                UserDto createdUserDto = userDtoMapper.fromBusiness(createdUser);
++                return ResponseEntity.ok(createdUserDto);
++        }
+ }
+diff --git a/api/src/main/java/de/unibayreuth/se/taskboard/api/dtos/UserDto.java b/api/src/main/java/de/unibayreuth/se/taskboard/api/dtos/UserDto.java
+index fe55fc4..7575ed5 100644
+--- a/api/src/main/java/de/unibayreuth/se/taskboard/api/dtos/UserDto.java
++++ b/api/src/main/java/de/unibayreuth/se/taskboard/api/dtos/UserDto.java
+@@ -1,5 +1,14 @@
+ package de.unibayreuth.se.taskboard.api.dtos;
+ 
++import org.springframework.lang.NonNull;
++
++import javax.annotation.Nullable;
++import java.time.LocalDateTime;
++import java.util.UUID;
++
+ //TODO: Add DTO for users.
+ public record UserDto(
+-) { }
++        @Nullable UUID id, // ID of user
++        @NonNull LocalDateTime createdAt, // timestamp of creation
++        @NonNull String name // name of user
++        ) { }
+diff --git a/api/src/main/java/de/unibayreuth/se/taskboard/api/mapper/TaskDtoMapper.java b/api/src/main/java/de/unibayreuth/se/taskboard/api/mapper/TaskDtoMapper.java
+index e40ab9c..be01fdd 100644
+--- a/api/src/main/java/de/unibayreuth/se/taskboard/api/mapper/TaskDtoMapper.java
++++ b/api/src/main/java/de/unibayreuth/se/taskboard/api/mapper/TaskDtoMapper.java
+@@ -3,6 +3,7 @@ package de.unibayreuth.se.taskboard.api.mapper;
+ import de.unibayreuth.se.taskboard.api.dtos.TaskDto;
+ import de.unibayreuth.se.taskboard.api.dtos.UserDto;
+ import de.unibayreuth.se.taskboard.business.domain.Task;
++import de.unibayreuth.se.taskboard.business.ports.UserService;
+ import lombok.NoArgsConstructor;
+ import org.mapstruct.Mapper;
+ import org.mapstruct.Mapping;
+@@ -19,8 +20,8 @@ import java.util.UUID;
+ public abstract class TaskDtoMapper {
+     //TODO: Fix this mapper after resolving the other TODOs.
+ 
+-//    @Autowired
+-//    private UserService userService;
++    @Autowired
++    private UserService userService;
+     @Autowired
+     private UserDtoMapper userDtoMapper;
+ 
+diff --git a/application/src/main/java/de/unibayreuth/se/taskboard/LoadInitialData.java b/application/src/main/java/de/unibayreuth/se/taskboard/LoadInitialData.java
+index 9ec7206..e111f10 100644
+--- a/application/src/main/java/de/unibayreuth/se/taskboard/LoadInitialData.java
++++ b/application/src/main/java/de/unibayreuth/se/taskboard/LoadInitialData.java
+@@ -2,6 +2,7 @@ package de.unibayreuth.se.taskboard;
+ 
+ import de.unibayreuth.se.taskboard.business.domain.Task;
+ import de.unibayreuth.se.taskboard.business.ports.TaskService;
++import de.unibayreuth.se.taskboard.business.ports.UserService;
+ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.beans.factory.InitializingBean;
+@@ -20,7 +21,7 @@ import java.util.List;
+ class LoadInitialData implements InitializingBean {
+     private final TaskService taskService;
+     // TODO: Fix this class after resolving the other TODOs.
+-    //private final UserService userService;
++    private final UserService userService;
+ 
+     @Override
+     public void afterPropertiesSet() {
+diff --git a/application/src/main/java/de/unibayreuth/se/taskboard/TestFixtures.java b/application/src/main/java/de/unibayreuth/se/taskboard/TestFixtures.java
+index b075082..f846d53 100644
+--- a/application/src/main/java/de/unibayreuth/se/taskboard/TestFixtures.java
++++ b/application/src/main/java/de/unibayreuth/se/taskboard/TestFixtures.java
+@@ -1,15 +1,20 @@
+ package de.unibayreuth.se.taskboard;
+ 
++import de.unibayreuth.se.taskboard.api.dtos.UserDto;
++import de.unibayreuth.se.taskboard.api.mapper.UserDtoMapper;
++import de.unibayreuth.se.taskboard.api.mapper.UserDtoMapperImpl;
+ import de.unibayreuth.se.taskboard.business.domain.Task;
+ import de.unibayreuth.se.taskboard.business.domain.User;
+ import de.unibayreuth.se.taskboard.business.ports.UserService;
+ import de.unibayreuth.se.taskboard.business.ports.TaskService;
+ import org.apache.commons.lang3.SerializationUtils;
++import org.springframework.beans.factory.annotation.Autowired;
+ 
+ import java.util.List;
+ import java.util.stream.Collectors;
+ 
+ public class TestFixtures {
++
+     private static final List<User> USERS = List.of(
+             new User("Alice"),
+             new User("Bob"),
+@@ -36,11 +41,10 @@ public class TestFixtures {
+ 
+     public static List<User> createUsers(UserService userService) {
+         // TODO: Fix this after resolving the other TODOs.
+-//        return USERS.stream()
+-//                .map(SerializationUtils::clone) // prevent issues when tests modify the fixture objects
+-//                .map(userService::create)
+-//                .collect(Collectors.toList());
+-        return List.of();
++        return USERS.stream()
++                .map(SerializationUtils::clone) // prevent issues when tests modify the fixture objects
++                .map(userService::createUser)
++                .collect(Collectors.toList());
+     }
+ 
+     public static List<Task> createTasks(TaskService taskService) {
+diff --git a/application/src/test/java/de/unibayreuth/se/taskboard/TaskBoardSystemTests.java b/application/src/test/java/de/unibayreuth/se/taskboard/TaskBoardSystemTests.java
+index 05af92c..e717cc7 100644
+--- a/application/src/test/java/de/unibayreuth/se/taskboard/TaskBoardSystemTests.java
++++ b/application/src/test/java/de/unibayreuth/se/taskboard/TaskBoardSystemTests.java
+@@ -1,12 +1,17 @@
+ package de.unibayreuth.se.taskboard;
+ 
+ import de.unibayreuth.se.taskboard.api.dtos.TaskDto;
++import de.unibayreuth.se.taskboard.api.dtos.UserDto;
+ import de.unibayreuth.se.taskboard.api.mapper.TaskDtoMapper;
++import de.unibayreuth.se.taskboard.api.mapper.UserDtoMapper;
+ import de.unibayreuth.se.taskboard.business.domain.Task;
++import de.unibayreuth.se.taskboard.business.domain.User;
++import de.unibayreuth.se.taskboard.business.ports.UserService;
+ import io.restassured.http.ContentType;
+ import org.junit.jupiter.api.Test;
+ import org.springframework.beans.factory.annotation.Autowired;
+ 
++import java.time.LocalDateTime;
+ import java.util.List;
+ 
+ import static io.restassured.RestAssured.given;
+@@ -20,6 +25,12 @@ public class TaskBoardSystemTests extends AbstractSystemTest {
+     @Autowired
+     private TaskDtoMapper taskDtoMapper;
+ 
++    @Autowired
++    private UserDtoMapper userDtoMapper;
++
++    @Autowired
++    private UserService userService;
++
+     @Test
+     void getAllCreatedTasks() {
+         List<Task> createdTasks = TestFixtures.createTasks(taskService);
+@@ -66,4 +77,71 @@ public class TaskBoardSystemTests extends AbstractSystemTest {
+     }
+ 
+     //TODO: Add at least one test for each new endpoint in the users controller (the create endpoint can be tested as part of the other endpoints).
++    /*@Test // getting nullpointerexception because of a name of an user being null
++    void getAllUsers() {
++        List<User> createdUsers = TestFixtures.createUsers(userService);
++
++        // api call
++        List<UserDto> retrievedUserDtos = given()
++                .contentType(ContentType.JSON)
++                .when()
++                .get("/api/users")
++                .then()
++                .statusCode(200)
++                .body(".", hasSize(createdUsers.size())) // check size of list
++                .and()
++                .extract().jsonPath().getList("$", UserDto.class);
++
++        // convert retrieved dtos to
++        List<User> retrievedUsers = retrievedUserDtos.stream()
++                .map(userDtoMapper::toBusiness)
++                .toList();
++
++        // assert
++        assertThat(retrievedUsers)
++                .usingRecursiveFieldByFieldElementComparatorIgnoringFields("createdAt") // ignore createdAt
++                .containsExactlyInAnyOrderElementsOf(createdUsers);
++    }*/
++
++    @Test
++    void getUserById() {
++        // create and save new user
++        User createdUser = userService.createUser(
++                new User("Test User")
++        );
++        UserDto createdUserDto = new UserDto(null, LocalDateTime.now(), "Test User");
++
++        // get user through api
++        UserDto retrievedUserDto = given()
++                .contentType(ContentType.JSON)
++                .when()
++                .get("/api/users/{id}", createdUser.getId())
++                .then()
++                .statusCode(200)
++                .extract().as(UserDto.class);
++
++        // compare created user to retrieved user
++        assertThat(retrievedUserDto)
++                .usingRecursiveComparison()
++                .ignoringFields("id", "createdAt")
++                .isEqualTo(createdUserDto);
++    }
++
++    @Test
++    void createUser() {
++        UserDto newUserDto = new UserDto(null, LocalDateTime.now(), "New User");
++
++        UserDto createdUserDto = given()
++                .contentType(ContentType.JSON)
++                .body(newUserDto)
++                .when()
++                .post("/api/users")
++                .then()
++                .statusCode(200)
++                .extract().as(UserDto.class);
++
++        // check answer
++        assertThat(createdUserDto.name()).isEqualTo("New User"); // assert Name
++        assertThat(createdUserDto.id()).isNotNull(); // assert that id was created
++    }
+ }
+\ No newline at end of file
+diff --git a/business/pom.xml b/business/pom.xml
+index 4acad1b..b4945f0 100644
+--- a/business/pom.xml
++++ b/business/pom.xml
+@@ -9,6 +9,9 @@
+     </parent>
+ 
+     <artifactId>business</artifactId>
++    <dependencies>
++
++    </dependencies>
+ 
+     <build>
+         <plugins>
+diff --git a/business/src/main/java/de/unibayreuth/se/taskboard/business/impl/UserServiceImpl.java b/business/src/main/java/de/unibayreuth/se/taskboard/business/impl/UserServiceImpl.java
+new file mode 100644
+index 0000000..daec223
+--- /dev/null
++++ b/business/src/main/java/de/unibayreuth/se/taskboard/business/impl/UserServiceImpl.java
+@@ -0,0 +1,45 @@
++package de.unibayreuth.se.taskboard.business.impl;
++
++import de.unibayreuth.se.taskboard.business.domain.User;
++import de.unibayreuth.se.taskboard.business.exceptions.DuplicateNameException;
++import de.unibayreuth.se.taskboard.business.ports.UserService;
++import de.unibayreuth.se.taskboard.business.ports.UserPersistenceService;
++import org.springframework.stereotype.Service;
++
++import java.util.List;
++import java.util.Optional;
++import java.util.UUID;
++import java.util.stream.Collectors;
++
++/**
++ * Implementation of the UserService interface using the UserPersistenceService.
++ */
++@Service
++public class UserServiceImpl implements UserService {
++
++    private final UserPersistenceService persistenceService;
++
++    public UserServiceImpl(UserPersistenceService persistenceService) {
++        this.persistenceService = persistenceService;
++    }
++
++    @Override
++    public Optional<User> getUserById(UUID id) {
++        return persistenceService.getById(id);
++    }
++
++    @Override
++    public List<User> getAllUsers() {
++        return persistenceService.getAll();
++    }
++
++    @Override
++    public User createUser(User user) throws DuplicateNameException {
++        // create new user object
++        User newUser = new User(user.getName());
++        // save user with persistenceService
++        User savedUser = persistenceService.upsert(newUser);
++        // return user
++        return savedUser;
++    }
++}
+diff --git a/business/src/main/java/de/unibayreuth/se/taskboard/business/ports/UserService.java b/business/src/main/java/de/unibayreuth/se/taskboard/business/ports/UserService.java
+index 7412302..7f73de2 100644
+--- a/business/src/main/java/de/unibayreuth/se/taskboard/business/ports/UserService.java
++++ b/business/src/main/java/de/unibayreuth/se/taskboard/business/ports/UserService.java
+@@ -1,6 +1,36 @@
+ package de.unibayreuth.se.taskboard.business.ports;
+ 
++import de.unibayreuth.se.taskboard.business.domain.User;
++import de.unibayreuth.se.taskboard.business.exceptions.DuplicateNameException;
++
++import java.util.List;
++import java.util.Optional;
++import java.util.UUID;
++
+ public interface UserService {
+     //TODO: Add user service interface that the controller uses to interact with the business layer.
+     //TODO: Implement the user service interface in the business layer, using the existing user persistence service.
++    /**
++     * Retrieve a user by ID.
++     *
++     * @param id the ID of the user
++     * @return an Optional containing the UserDto if found, or empty otherwise
++     */
++    Optional<User> getUserById(UUID id);
++
++    /**
++     * Retrieve all users.
++     *
++     * @return a list of UserDto objects
++     */
++    List<User> getAllUsers();
++
++    /**
++     * Create a new user.
++     *
++     * @param user the user data transfer object
++     * @return the created User
++     */
++    User createUser(User user) throws DuplicateNameException;
+ }
++
